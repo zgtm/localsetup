@@ -1,0 +1,17 @@
+name: Release
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: build
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo build --release
+      - run: gh release upload ${{github.event.release.tag_name}} target/release/localsetup
+        env:
+          GH_TOKEN: ${{ github.token }}
