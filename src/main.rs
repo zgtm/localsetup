@@ -17,7 +17,7 @@ struct Repository {
     source: String,
     target: String,
     update: Option<bool>,
-    synchronize: Option<bool>,
+    synchronise: Option<bool>,
     run_once: Option<String>,
     run_everytime: Option<String>,
 }
@@ -118,7 +118,11 @@ fn write_config(config: Config) -> Result<(), Box<dyn std::error::Error>> {
 fn get_setup(mut source: String) -> Result<Localsetup, Box<dyn std::error::Error>> {
     if source.starts_with("http://") || source.starts_with("https://") {
         if source.starts_with("https://github.com/") && source.contains("blob") {
+            #[cfg(debug_assertions)]
+            print!("Redirecting {} to ", source);
             source = source.replacen("https://github.com/", "https://raw.githubusercontent.com/", 1).replacen("/blob/", "/refs/heads/", 1).to_owned();
+            #[cfg(debug_assertions)]
+            println!("{}", source);
         }
         let body = reqwest::blocking::get(source)?.text()?;
         let setup: Localsetup = toml::from_str(&body)?;
@@ -212,6 +216,79 @@ fn setup_repository(repository: &Repository) -> Result<(), Box<dyn std::error::E
             .output()
             .expect("failed to execute process");
     }
+
+    Ok(())
+}
+
+fn update_repository(repository: &Repository) -> Result<(), Box<dyn std::error::Error>> {
+    let target = if let Some(target) = repository.target.strip_prefix("~/") {
+        get_home() + "/" + target
+    } else {
+        repository.target.to_owned()
+    };
+
+    if !path_exists(&target) {
+        println!("Error! Repository: {} -> {} does not exist!", repository.source, repository.target);
+        // TODO: Fail!
+    }
+
+    println!("Updating repository: {} -> {}", repository.source, repository.target);
+
+    let output = std::process::Command::new("git")
+        .arg("pull")
+        .current_dir(target)
+        .output()
+        .expect("failed to execute process");
+
+    println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+    println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+
+    Ok(())
+}
+
+fn synchronise_repository(repository: &Repository) -> Result<(), Box<dyn std::error::Error>> {
+    let target = if let Some(target) = repository.target.strip_prefix("~/") {
+        get_home() + "/" + target
+    } else {
+        repository.target.to_owned()
+    };
+
+    if !path_exists(&target) {
+        println!("Error! Repository: {} -> {} does not exist!", repository.source, repository.target);
+        // TODO: Fail!
+    }
+
+    println!("Synchronising repository: {} -> {}", repository.source, repository.target);
+
+    let output = std::process::Command::new("git")
+        .arg("commit")
+        .arg("-am")
+        .arg("autocommit")
+        .current_dir(&target)
+        .output()
+        .expect("failed to execute process");
+
+    println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+    println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+
+    let output = std::process::Command::new("git")
+        .arg("pull")
+        .arg("-r")
+        .current_dir(&target)
+        .output()
+        .expect("failed to execute process");
+
+    println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+    println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+
+    let output = std::process::Command::new("git")
+        .arg("push")
+        .current_dir(&target)
+        .output()
+        .expect("failed to execute process");
+
+    println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+    println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
 
     Ok(())
 }
@@ -468,6 +545,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         for repository in repositories {
             setup_repository(repository)?;
+
+            if repository.synchronise.unwrap_or_default() {
+                synchronise_repository(repository)?;
+            } else if repository.update.unwrap_or_default() {
+                update_repository(repository)?;
+            }
         }
     }
 
