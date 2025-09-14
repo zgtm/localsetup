@@ -7,9 +7,15 @@ struct Config {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
-struct SSH {
+struct Ssh {
     setup_ssh_key: Option<bool>,
     no_passphrase: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+struct Git {
+    name: Option<String>,
+    email: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -52,9 +58,10 @@ struct Rustup {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 struct Localsetup {
-    ssh: Option<SSH>,
-    repositories: Option<Vec<Repository>>,
     packages: Option<Packages>,
+    ssh: Option<Ssh>,
+    git: Option<Git>,
+    repositories: Option<Vec<Repository>>,
     symlink: Option<Symlink>,
     ubuntu: Option<Ubuntu>,
     rustup: Option<Rustup>,
@@ -170,8 +177,8 @@ fn setup_ssh_key(no_passphrase: bool) -> Result<(), Box<dyn std::error::Error>> 
             .expect("failed to execute process")
     };
 
-    println!("{}", str::from_utf8(&output.stdout).unwrap());
-    println!("{}", str::from_utf8(&output.stderr).unwrap());
+    println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+    println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
 
     let mut file = std::fs::File::open(&(get_home() + "/.ssh/id_ed25519.pub"))?;
     let mut public_key = String::new();
@@ -188,7 +195,53 @@ fn setup_ssh_key(no_passphrase: bool) -> Result<(), Box<dyn std::error::Error>> 
     Ok(())
 }
 
-fn setup_repository(repository: &Repository) -> Result<(), Box<dyn std::error::Error>> {
+fn setup_git(git: &Git) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(git_name) = git.name.as_ref() {
+        if !std::process::Command::new("git")
+            .arg("config")
+            .arg("get")
+            .arg("user.name")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()?
+            .success() {
+                let output = std::process::Command::new("git")
+                    .arg("config")
+                    .arg("--global")
+                    .arg("user.name")
+                    .arg(git_name)
+                    .output()?;
+
+                println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+                println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+            }
+    }
+
+    if let Some(git_email) = git.email.as_ref() {
+        if !std::process::Command::new("git")
+            .arg("config")
+            .arg("get")
+            .arg("user.email")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()?
+            .success() {
+                let output = std::process::Command::new("git")
+                    .arg("config")
+                    .arg("--global")
+                    .arg("user.email")
+                    .arg(git_email)
+                    .output()?;
+
+                println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+                println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+            }
+    }
+
+    Ok(())
+}
+
+fn setup_repository(repository: &Repository) -> Result<bool, Box<dyn std::error::Error>> {
     let target = if let Some(target) = repository.target.strip_prefix("~/") {
         get_home() + "/" + target
     } else {
@@ -197,27 +250,27 @@ fn setup_repository(repository: &Repository) -> Result<(), Box<dyn std::error::E
 
     if path_exists(&target) {
         println!("Existing repository: {} -> {}", repository.source, repository.target);
-        // Update?
-    } else {
-        println!("Creating repository: {} -> {}", repository.source, repository.target);
-        let (mut base, dir) = target.rsplit_once("/").expect("Invalid directory");
-        if dir == "" {
-            (base, _)  = base.rsplit_once("/").expect("Invalid directory");
-        }
-
-        if !path_exists(base) {
-            std::fs::create_dir_all(base)?;
-        }
-
-        std::process::Command::new("git")
-            .arg("clone")
-            .arg(&repository.source)
-            .arg(&target)
-            .output()
-            .expect("failed to execute process");
+        return Ok(false)
     }
 
-    Ok(())
+    println!("Creating repository: {} -> {}", repository.source, repository.target);
+    let (mut base, dir) = target.rsplit_once("/").expect("Invalid directory");
+    if dir == "" {
+        (base, _)  = base.rsplit_once("/").expect("Invalid directory");
+    }
+
+    if !path_exists(base) {
+        std::fs::create_dir_all(base)?;
+    }
+
+    std::process::Command::new("git")
+        .arg("clone")
+        .arg(&repository.source)
+        .arg(&target)
+        .output()
+        .expect("failed to execute process");
+
+    Ok(true)
 }
 
 fn update_repository(repository: &Repository) -> Result<(), Box<dyn std::error::Error>> {
@@ -342,8 +395,8 @@ fn remove_packages(packages: Vec<String>, assume_yes: bool) -> Result<(), Box<dy
                 .output()?
         };
 
-        println!("{}", str::from_utf8(&output.stdout).unwrap());
-        println!("{}", str::from_utf8(&output.stderr).unwrap());
+        println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+        println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
     } else {
         println!("No packages to remove");
     }
@@ -359,8 +412,10 @@ fn package_installed(package: &str) -> Result<bool, Box<dyn std::error::Error>> 
         .stderr(std::process::Stdio::null())
         .status()?;
 
-    // Not, if a package is no longer installed, but the config files are still present, we will recognize this as
+    // Note, if a package is no longer installed, but the config files are still present, we will recognize this as
     // installed (for dpkg its: "Status: deinstall ok config-files"). For now, we're okay with that!
+    //
+    // Also, if a package is marked as "hold" we will recognize this as installed. TODO: fix that!
     return Ok(status.success())
 }
 
@@ -407,16 +462,23 @@ fn create_file_with_content_if_not_exists_root(filename: &str, content: &str) ->
         return Ok(());
     }
 
-    // TODO: Create dir if not exists
-
+    let (directory, basename) = filename.rsplit_once("/").unwrap();
     let cache_path = get_cache_path();
-    let mut file = std::fs::File::create(cache_path.clone() + "/localsetup/" + filename)?;
+
+    std::fs::create_dir_all(cache_path.clone() + "/localsetup/")?;
+    let mut file = std::fs::File::create(cache_path.clone() + "/localsetup/" + basename)?;
+
     use std::io::Write;
     file.write_all(content.as_bytes())?;
 
+    std::process::Command::new("mkdir")
+                .arg("-p")
+                .arg(directory)
+                .output()?;
+
     std::process::Command::new("sudo")
                 .arg("cp")
-                .arg(cache_path + "/localsetup/" + filename)
+                .arg(cache_path + "/localsetup/" + basename)
                 .arg(filename)
                 .output()?;
 
@@ -426,7 +488,7 @@ fn create_file_with_content_if_not_exists_root(filename: &str, content: &str) ->
 fn ubuntu_remove_snap_and_install_firefox_ppa(assume_yes: bool) -> Result<(), Box<dyn std::error::Error>> {
     print!("Removing snap … ");
     if package_installed("snapd")? {
-        print!("");
+        println!("");
 
         if !assume_yes {
             println!("Removing snap and switching from snap-installed firefox and thundebird to PPA\nfirefox and thundebird will remove all bookmarks, setting, emails, and\neverything else. Are you sure you want that? [y/n]");
@@ -449,26 +511,32 @@ fn ubuntu_remove_snap_and_install_firefox_ppa(assume_yes: bool) -> Result<(), Bo
                 .arg("snapd")
                 .output()?;
 
-        println!("{}", str::from_utf8(&output.stdout).unwrap());
-        println!("{}", str::from_utf8(&output.stderr).unwrap());
-
-        create_file_with_content_if_not_exists_root(NOSNAPD_FILENAME, NOSNAPD_FILE_CONTENT)?;
-        create_file_with_content_if_not_exists_root(FIREFOX_NOSNAP_FILENAME, FIREFOX_NOSNAP_FILE_CONTENT)?;
-        create_file_with_content_if_not_exists_root(THUNDERBIRD_NOSNAP_FILENAME, THUNDERBIRD_NOSNAP_FILE_CONTENT)?;
+        println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+        println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
     } else {
         println!("snap already removed");
     }
 
-    print!("Installing Firefox … ");
+    print!("Ensuring snap will never be installed again … ");
+    if path_exists(NOSNAPD_FILENAME) && path_exists(FIREFOX_NOSNAP_FILENAME) && path_exists(THUNDERBIRD_NOSNAP_FILENAME) {
+        println!("already safe");
+    } else {
+        create_file_with_content_if_not_exists_root(NOSNAPD_FILENAME, NOSNAPD_FILE_CONTENT)?;
+        create_file_with_content_if_not_exists_root(FIREFOX_NOSNAP_FILENAME, FIREFOX_NOSNAP_FILE_CONTENT)?;
+        create_file_with_content_if_not_exists_root(THUNDERBIRD_NOSNAP_FILENAME, THUNDERBIRD_NOSNAP_FILE_CONTENT)?;
+        println!("done");
+    }
+
+    print!("Installing Firefox from PPA … ");
     if !package_installed("firefox")? {
-        print!("");
+        println!("");
         let output = std::process::Command::new("sudo")
             .arg("add-apt-repository")
             .arg("ppa:mozillateam/ppa")
             .output()?;
 
-        println!("{}", str::from_utf8(&output.stdout).unwrap());
-        println!("{}", str::from_utf8(&output.stderr).unwrap());
+        println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+        println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
 
         let output = std::process::Command::new("sudo")
             .arg("apt")
@@ -478,13 +546,22 @@ fn ubuntu_remove_snap_and_install_firefox_ppa(assume_yes: bool) -> Result<(), Bo
             .arg("thunderbird")
             .output()?;
 
-        println!("{}", str::from_utf8(&output.stdout).unwrap());
-        println!("{}", str::from_utf8(&output.stderr).unwrap());
+        println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+        println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
 
         create_file_with_content_if_not_exists_root(FIREFOX_PPA_FILENAME, FIREFOX_PPA_FILE_CONTENT)?;
         create_file_with_content_if_not_exists_root(THUNDERBIRD_PPA_FILENAME, THUNDERBIRD_PPA_FILE_CONTENT)?;
     } else {
         println!("Firefox is already installed");
+    }
+
+    print!("Ensuring Firefox will be installed from PPA … ");
+    if path_exists(FIREFOX_PPA_FILENAME) && path_exists(THUNDERBIRD_PPA_FILENAME) {
+        println!("already ensured");
+    } else {
+        create_file_with_content_if_not_exists_root(FIREFOX_PPA_FILENAME, FIREFOX_PPA_FILE_CONTENT)?;
+        create_file_with_content_if_not_exists_root(THUNDERBIRD_PPA_FILENAME, THUNDERBIRD_PPA_FILE_CONTENT)?;
+        println!("done");
     }
 
     Ok(())
@@ -536,24 +613,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(debug_assertions)]
     println!("{:#?}", setup);
 
-    if setup.ssh.as_ref().map(|ssh| ssh.setup_ssh_key.unwrap_or(true)).unwrap_or(true) {
-        setup_ssh_key(setup.ssh.as_ref().map(|ssh| ssh.no_passphrase.unwrap_or(false)).unwrap_or(false))?;
-    }
-
-    if let Some(repositories) = setup.repositories.as_ref() {
-        println!("Setting up repositories …");
-
-        for repository in repositories {
-            setup_repository(repository)?;
-
-            if repository.synchronise.unwrap_or_default() {
-                synchronise_repository(repository)?;
-            } else if repository.update.unwrap_or_default() {
-                update_repository(repository)?;
-            }
-        }
-    }
-
     if let Some(packages) = setup.packages.as_ref() {
         let mut packages_to_install = Vec::<String>::new();
         let mut packages_to_remove = Vec::<String>::new();
@@ -577,6 +636,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         install_packages(packages_to_install, install_assume_yes)?;
         remove_packages(packages_to_remove, remove_assume_yes)?;
+    }
+
+    if setup.ssh.as_ref().map(|ssh| ssh.setup_ssh_key.unwrap_or(true)).unwrap_or(true) {
+        setup_ssh_key(setup.ssh.as_ref().map(|ssh| ssh.no_passphrase.unwrap_or(false)).unwrap_or(false))?;
+    }
+
+    if let Some(git) = setup.git.as_ref() {
+        setup_git(&git)?;
+    }
+
+    if let Some(repositories) = setup.repositories.as_ref() {
+        println!("Setting up repositories …");
+
+        for repository in repositories {
+            let newly_setup = setup_repository(repository)?;
+
+            if !newly_setup {
+                if repository.synchronise.unwrap_or_default() {
+                    synchronise_repository(repository)?;
+                } else if repository.update.unwrap_or_default() {
+                    update_repository(repository)?;
+                }
+            }
+        }
     }
 
     if let Some(ubuntu) = setup.ubuntu.as_ref() {
