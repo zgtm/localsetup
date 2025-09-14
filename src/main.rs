@@ -54,6 +54,7 @@ struct Ubuntu {
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 struct Rustup {
     install_rust: Option<bool>,
+    update_rust: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -575,6 +576,74 @@ fn ubuntu_specifics(ubuntu: &Ubuntu) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn setup_rustup(rustup: &Rustup) -> Result<(), Box<dyn std::error::Error>> {
+    let rustup_installed = std::process::Command::new("which")
+        .arg("rustup")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()?
+        .success();
+
+    let rust_installed = std::process::Command::new("which")
+        .arg("rustup")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()?
+        .success();
+
+    if !rust_installed && rustup.install_rust.unwrap_or_default() {
+        if !rustup_installed {
+            println!("Installing rustup … ");
+
+            let body = reqwest::blocking::get("https://sh.rustup.rs")?.text()?;
+
+            let cache_path = get_cache_path();
+
+            let mut file = std::fs::File::create(cache_path.clone() + "/rustup.sh")?;
+            use std::io::Write;
+            file.write_all(body.as_bytes())?;
+
+            println!("Installing rust … ");
+
+            let output = std::process::Command::new("sh")
+                .arg(cache_path + "/rustup.sh")
+                .arg("-y")
+                .output()?;
+
+            println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+            println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+        } else {
+            println!("Rustup already installed");
+            println!("Installing rust …");
+
+            let output = std::process::Command::new("rustup")
+                .arg("toolchain")
+                .arg("install")
+                .arg("stable")
+                .output()?;
+
+            println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+            println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+        }
+
+    }
+
+    if rustup_installed && rust_installed && rustup.update_rust.unwrap_or_default() {
+        println!("Rustup already installed");
+        println!("Rust already installed");
+        println!("Updating rust …");
+
+        let output = std::process::Command::new("rustup")
+            .arg("update")
+            .output()?;
+
+        println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+        println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+    }
+
+    Ok(())
+}
+
 fn file_to_list(filename: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     use std::io::BufRead;
 
@@ -664,6 +733,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(ubuntu) = setup.ubuntu.as_ref() {
         ubuntu_specifics(ubuntu)?;
+    }
+
+    if let Some(rustup) = setup.rustup.as_ref() {
+        setup_rustup(rustup)?;
     }
 
 
