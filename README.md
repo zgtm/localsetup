@@ -2,12 +2,15 @@
 
 [![CI](https://github.com/zgtm/localsetup/actions/workflows/ci.yaml/badge.svg)](https://github.com/zgtm/localsetup/actions/workflows/ci.yaml)
 
-
 ## Installation
 
 Install the binary from Github directly
 ```
-curl https://github.com/zgtm/localsetup/releases/latest/download/localsetup -o ~/.local/bin/localsetup && chmod a+x ~/.local/bin/localsetup
+curl --create-dirs -o ~/.local/bin/localsetup https://github.com/zgtm/localsetup/releases/latest/download/localsetup  && chmod a+x ~/.local/bin/localsetup
+```
+or if `curl` is not installed yet
+```
+wget -P ~/.local/bin/localsetup  https://github.com/zgtm/localsetup/releases/latest/download/localsetup  && chmod a+x ~/.local/bin/localsetup
 ```
 
 or build and install it with cargo:
@@ -24,11 +27,24 @@ Create a setupfile (see below) somewhere and pass it to localsetup:
 localsetup <path or URL to setupfile>
 ```
 
+Though, if you don't have ~/.local/bin in `$PATH` yet, you might need to run
+
+```
+~/.local/bin/localsetup <path or URL to setupfile>
+```
+
 ## Subsequent Setup
 
 Just run
+
 ```
 localsetup
+```
+
+though, if you still don't have ~/.local/bin in `$PATH`, use this instead:
+
+```
+~/.local/bin/localsetup
 ```
 
 ## The Setupfile
