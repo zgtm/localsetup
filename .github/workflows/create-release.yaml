@@ -1,0 +1,26 @@
+on:
+  push:
+    tags:
+      - 'v*'
+
+name: Create Release
+
+jobs:
+  build:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions: write-all
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Build binary
+        run: cargo build --release
+      - name: Create Release
+        run: gh release create ${{ github.ref_name }} -t "Release ${{ github.ref_name }}" --generate-notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Github Actions
+      - name: Upload binary
+        run: gh release upload ${{ github.ref_name }} target/release/localsetup
+        env:
+          GH_TOKEN: ${{ github.token }}
