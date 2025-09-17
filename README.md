@@ -51,22 +51,18 @@ though, if you still don't have ~/.local/bin in `$PATH`, use this instead:
 
 ## The Setupfile
 
-Currently supported:
+The following settings are currently supported:
 
 ### Setup SSH
+
+An SSH-Key will be created by default, if it does not exist.
 
 ```
 [ssh]
 ###
 no_passphrase = false
 ```
-### Setup Git
 
-```
-[git]
-name = "name" 
-email = "name@example.com"
-```
 
 ### Install Rust via rustup
 ```
@@ -83,21 +79,24 @@ remove_snap_and_install_firefox_ppa_yes_delete_my_bookmarks_and_everything = fal
 ```
 
 ### Install ghostty
+Can install `ghostty` from the [ghostty-ubuntu](https://github.com/mkasberg/ghostty-ubuntu) repository.
 ```
 [ghostty]
 install_ghosty_from_ghostty_ubuntu = true
 ```
 
 ### Install uv
+Can install `uv` from the astral.sh website.
 ``` 
 [uv]
 install_astral_sh = true
 ```
 
 ### Setup XDG user directories
+This will update `user-dirs.dirs` accordingly. If wanted, it can try to move existing directories to the new location.
 ```
 [xdg-user-dirs]
-move_existing = true
+move_existing = false
 desktop = "$HOME/Desktop"
 documents = "$HOME/Documents"
 downloads = "$HOME/Downloads"
@@ -112,10 +111,25 @@ videos = "$HOME/Videos"
 ```
 [packages]
 install = []
-install_list = fi
+install_list = "packages_to_install.txt"
+remove = []
+install_list = "packages_to_remove.txt"
+```
+
+### Setup Git
+
+Setup name and email so git does not complain when checking out repositories afterwards.
+
+```
+[git]
+name = "name" 
+email = "name@example.com"
 ```
 
 ### Checkout git repositories
+
+This will checkout git repositories. If wanted, it can update (`git pull`) or synchronize (`git pull && git push`) whenever localsetup is run. Also can run arbitrary commands.
+
 ```
 [[repositories]]
 source = "git@github.com:example/dotfiles.git"
