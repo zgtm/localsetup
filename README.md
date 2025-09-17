@@ -4,6 +4,8 @@
 
 ## Installation
 
+You can find [the latest release on Github](https://github.com/zgtm/localsetup/releases/latest).
+
 Install the binary from Github directly
 ```
 curl --create-dirs -o ~/.local/bin/localsetup https://github.com/zgtm/localsetup/releases/latest/download/localsetup  && chmod a+x ~/.local/bin/localsetup
@@ -51,4 +53,76 @@ though, if you still don't have ~/.local/bin in `$PATH`, use this instead:
 
 Currently supported:
 
- - `setup_ssh_key` (boolean, default `true`) Setup an ssh key and print the public key if none exists yet
+### Setup SSH
+
+```
+[ssh]
+###
+no_passphrase = false
+```
+### Setup Git
+
+```
+[git]
+name = "name" 
+email = "name@example.com"
+```
+
+### Install Rust via rustup
+```
+[rustup]
+install_rust = false
+update_rust = false
+```
+
+### Remove Snap on Ubuntu and install Firefox from PPA
+``` 
+[ubuntu]
+remove_snap_and_install_firefox_ppa = false
+remove_snap_and_install_firefox_ppa_yes_delete_my_bookmarks_and_everything = false
+```
+
+### Install ghostty
+```
+[ghostty]
+install_ghosty_from_ghostty_ubuntu = true
+```
+
+### Install uv
+``` 
+[uv]
+install_astral_sh = true
+```
+
+### Setup XDG user directories
+```
+[xdg-user-dirs]
+move_existing = true
+desktop = "$HOME/Desktop"
+documents = "$HOME/Documents"
+downloads = "$HOME/Downloads"
+music = "$HOME/Music"
+pictures = "$HOME/Pictures"
+publicshare = "$HOME/Public"
+templates = "$HOME/Templates"
+videos = "$HOME/Videos"
+```
+
+### Install or remove packages
+```
+[packages]
+install = []
+install_list = fi
+```
+
+### Checkout git repositories
+```
+[[repositories]]
+source = "git@github.com:example/dotfiles.git"
+target = "~/dotfiles"
+update = false
+synchronise = false
+run_always = "~/install.sh" # command to run everytime localsetup is run
+```
+
+
