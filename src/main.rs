@@ -698,6 +698,8 @@ fn file_to_list(filename: &str) -> Result<Vec<String>, Box<dyn std::error::Error
     Ok(Vec::new())
 }
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 fn update() -> Result<(), Box<dyn std::error::Error>> {
     println!("Running update …");
     let _ = std::fs::remove_file(get_home() + "/.local/bin/__localsetup_old");
@@ -719,6 +721,8 @@ fn update() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("localsetup version {}", VERSION);
+
     let mut args = std::env::args();
     let _ = args.next(); // Ignore program name
     let param = args.next();
@@ -733,6 +737,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         let mut config = read_config()?;
         config.source = Some(param);
+
+        // TODO: Maybe only write config if we cound read the setupfile
         write_config(config)?;
     }
 
