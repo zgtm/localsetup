@@ -63,7 +63,7 @@ struct Uv {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
-struct Localsetup {
+struct Setupfile {
     packages: Option<Packages>,
     ssh: Option<Ssh>,
     git: Option<Git>,
@@ -129,7 +129,7 @@ fn write_config(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn get_setup(mut source: String) -> Result<Localsetup, Box<dyn std::error::Error>> {
+fn get_setup(mut source: String) -> Result<Setupfile, Box<dyn std::error::Error>> {
     if source.starts_with("http://") || source.starts_with("https://") {
         if source.starts_with("https://github.com/") && source.contains("blob") {
             #[cfg(debug_assertions)]
@@ -139,14 +139,14 @@ fn get_setup(mut source: String) -> Result<Localsetup, Box<dyn std::error::Error
             println!("{}", source);
         }
         let body = reqwest::blocking::get(source)?.text()?;
-        let setup: Localsetup = toml::from_str(&body)?;
+        let setup: Setupfile = toml::from_str(&body)?;
         return Ok(setup);
     } else {
         let mut file = std::fs::File::open(source)?;
         let mut config_toml = String::new();
         use std::io::Read;
         file.read_to_string(&mut config_toml)?;
-        let setup: Localsetup = toml::from_str(&config_toml)?;
+        let setup: Setupfile = toml::from_str(&config_toml)?;
         return Ok(setup);
     }
 }
@@ -698,6 +698,26 @@ fn file_to_list(filename: &str) -> Result<Vec<String>, Box<dyn std::error::Error
     Ok(Vec::new())
 }
 
+fn update() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Running update …");
+    let _ = std::fs::remove_file(get_home() + "/.local/bin/__localsetup_old");
+    std::fs::rename(get_home() + "/.local/bin/localsetup", get_home() + "/.local/bin/__localsetup_old")?;
+    print!("Downloading update … ");
+    let mut response = reqwest::blocking::get("https://github.com/zgtm/localsetup/releases/latest/download/localsetup")?;
+    let mut file = std::fs::File::create(get_home() + "/.local/bin/localsetup")?;
+    std::io::copy(&mut response, &mut file)?;
+    println!("done");
+
+    #[cfg(debug_assertions)]
+    print!("Make file executable … ");
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(get_home() + "/.local/bin/localsetup", std::fs::Permissions::from_mode(0o755))?;
+    #[cfg(debug_assertions)]
+    println!("done");
+
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = std::env::args();
     let _ = args.next(); // Ignore program name
@@ -707,9 +727,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(())
     }
 
-    if let Some(config_source) = param {
+    if let Some(param) = param {
+        if param == "update" {
+            return update();
+        }
         let mut config = read_config()?;
-        config.source = Some(config_source);
+        config.source = Some(param);
         write_config(config)?;
     }
 
