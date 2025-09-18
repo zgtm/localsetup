@@ -700,10 +700,47 @@ fn file_to_list(filename: &str) -> Result<Vec<String>, Box<dyn std::error::Error
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+fn check_for_updates() -> Result<bool, Box<dyn std::error::Error>> {
+    println!("Checking for updates …");
+
+    #[derive(Deserialize)]
+    struct GithubRelease {
+        name: String,
+    }
+    let client = reqwest::blocking::Client::new();
+    let latest_release = client.get("https://api.github.com/repos/zgtm/localsetup/releases/latest")
+        .header(reqwest::header::USER_AGENT, "zgtm/localsetup 0.0.2")
+        .send()?
+        .json::<GithubRelease>().map_err(|e| {
+            // Request again, so we can print the response
+            let latest_release = client.get("https://api.github.com/repos/zgtm/localsetup/releases/latest")
+                .header(reqwest::header::USER_AGENT, "zgtm/localsetup 0.0.2")
+                .send()
+                .map(|r| r.text().unwrap_or_default())
+                .unwrap_or_default();
+            println!("Latest release request response: {}", latest_release);
+            e
+        })?;
+
+    let latest_version = latest_release.name.strip_prefix("Release v").unwrap_or(&latest_release.name);
+    println!("Latest release: {}", latest_version);
+    println!("Current version: {}", VERSION);
+
+    if VERSION.split(".").map(|n| n.parse::<i32>().unwrap()).lt(latest_version.split(".").map(|n| n.parse::<i32>().unwrap())) {
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
 fn update() -> Result<(), Box<dyn std::error::Error>> {
+    if !check_for_updates()? {
+        return Ok(())
+    }
+
     println!("Running update …");
     let _ = std::fs::remove_file(get_home() + "/.local/bin/__localsetup_old");
-    std::fs::rename(get_home() + "/.local/bin/localsetup", get_home() + "/.local/bin/__localsetup_old")?;
+    let _ = std::fs::rename(get_home() + "/.local/bin/localsetup", get_home() + "/.local/bin/__localsetup_old");
     print!("Downloading update … ");
     let mut response = reqwest::blocking::get("https://github.com/zgtm/localsetup/releases/latest/download/localsetup")?;
     let mut file = std::fs::File::create(get_home() + "/.local/bin/localsetup")?;
@@ -735,6 +772,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if param == "update" {
             return update();
         }
+
         let mut config = read_config()?;
         config.source = Some(param);
 
