@@ -95,12 +95,12 @@ fn get_config_path() -> String {
 fn get_cache_path() -> String {
     if let Ok(path) = std::env::var("XDG_CACHE_HOME") {
         if path != "" {
-            return path;
+            return path + "/localsetup";
         }
     }
     if let Ok(path) = std::env::var("HOME") {
         if path != "" {
-            return path + "/.cache";
+            return path + "/.cache/localsetup";
         }
     }
     return "".to_string();
@@ -133,14 +133,38 @@ fn get_setup(mut source: String) -> Result<Setupfile, Box<dyn std::error::Error>
     if source.starts_with("http://") || source.starts_with("https://") {
         if source.starts_with("https://github.com/") && source.contains("blob") {
             #[cfg(debug_assertions)]
-            print!("Redirecting {} to ", source);
+            print!("Replacing {} by ", source);
             source = source.replacen("https://github.com/", "https://raw.githubusercontent.com/", 1).replacen("/blob/", "/refs/heads/", 1).to_owned();
             #[cfg(debug_assertions)]
             println!("{}", source);
         }
-        let body = reqwest::blocking::get(source)?.text()?;
-        let setup: Setupfile = toml::from_str(&body)?;
-        return Ok(setup);
+
+        let cache_path = get_cache_path();
+        match reqwest::blocking::get(&source).and_then(|r| r.text()) {
+            Ok(body) => {
+                std::fs::create_dir_all(&cache_path)?;
+                let mut file = std::fs::File::create(cache_path + "/localsetup.toml")?;
+                use std::io::Write;
+                let _ = file.write_all(body.as_bytes());
+                let setup: Setupfile = toml::from_str(&body)?;
+                return Ok(setup);
+            }
+            Err(err) =>  {
+                println!("Could not get setup file from {}", &source);
+
+                if let Ok(mut file) = std::fs::File::open(cache_path.clone() + "/localsetup.toml") {
+                    let mut config_toml = String::new();
+                    use std::io::Read;
+                    file.read_to_string(&mut config_toml)?;
+
+                    println!("Using locally cached version at {} instead", cache_path.clone() + "/localsetup.toml");
+                    let setup: Setupfile = toml::from_str(&config_toml)?;
+                    return Ok(setup);
+                } else {
+                    return Err(Box::new(err));
+                }
+            }
+        }
     } else {
         let mut file = std::fs::File::open(source)?;
         let mut config_toml = String::new();
@@ -472,8 +496,8 @@ fn create_file_with_content_if_not_exists_root(filename: &str, content: &str) ->
     let (directory, basename) = filename.rsplit_once("/").unwrap();
     let cache_path = get_cache_path();
 
-    std::fs::create_dir_all(cache_path.clone() + "/localsetup/")?;
-    let mut file = std::fs::File::create(cache_path.clone() + "/localsetup/" + basename)?;
+    std::fs::create_dir_all(cache_path.clone())?;
+    let mut file = std::fs::File::create(cache_path.clone() + "/" + basename)?;
 
     use std::io::Write;
     file.write_all(content.as_bytes())?;
@@ -485,7 +509,7 @@ fn create_file_with_content_if_not_exists_root(filename: &str, content: &str) ->
 
     std::process::Command::new("sudo")
                 .arg("cp")
-                .arg(cache_path + "/localsetup/" + basename)
+                .arg(cache_path + "/" + basename)
                 .arg(filename)
                 .output()?;
 
