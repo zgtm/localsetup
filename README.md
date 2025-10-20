@@ -54,6 +54,10 @@ though, if you still don't have ~/.local/bin in `$PATH`, use this instead:
 ~/.local/bin/localsetup
 ```
 
+<img src="hejibits128enchantedexecutable.png" width="500px" alt="The wizard will now install your software.">
+
+[Hejibits #128 "Enchanted Executable" by John Kleckner](https://hejibits.com/post/173306824534/128)
+
 ## The Setupfile
 
 The following settings are currently supported:
