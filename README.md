@@ -2,6 +2,11 @@
 
 [![CI](https://github.com/zgtm/localsetup/actions/workflows/ci.yaml/badge.svg)](https://github.com/zgtm/localsetup/actions/workflows/ci.yaml)
 
+- [Installation](#installation)
+- [First Setup](#first-setup)
+- [Usage](#usage)
+- [The Setupfile](#the-setupfile)
+
 ## Installation
 
 You can find [the latest release on Github](https://github.com/zgtm/localsetup/releases/latest).
@@ -23,7 +28,7 @@ cargo install localsetup
 
 ## First Setup
 
-Create a setupfile (see below) somewhere and pass it to localsetup:
+Create a [setupfile (see below)](#the-setupfile) somewhere and pass it to localsetup:
 
 ```
 localsetup <path or URL to setupfile>
@@ -35,7 +40,7 @@ Though, if you don't have ~/.local/bin in `$PATH` yet, you might need to run
 ~/.local/bin/localsetup <path or URL to setupfile>
 ```
 
-## Subsequent Setup
+## Usage
 
 Just run
 
