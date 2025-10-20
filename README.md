@@ -42,6 +42,8 @@ Though, if you don't have ~/.local/bin in `$PATH` yet, you might need to run
 
 ## Usage
 
+[<img src="hejibits128enchantedexecutable.png" width="300px" alt="The wizard will now install your software." align="right">](https://hejibits.com/post/173306824534/128)
+
 Just run
 
 ```
@@ -53,10 +55,13 @@ though, if you still don't have ~/.local/bin in `$PATH`, use this instead:
 ```
 ~/.local/bin/localsetup
 ```
+### Enjoy everything being set up!
 
-<img src="hejibits128enchantedexecutable.png" width="500px" alt="The wizard will now install your software.">
+Cartoon to the right: 
 
 [Hejibits #128 "Enchanted Executable" by John Kleckner](https://hejibits.com/post/173306824534/128)
+
+
 
 ## The Setupfile
 
