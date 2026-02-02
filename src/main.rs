@@ -63,6 +63,11 @@ struct Uv {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
+struct Ghostty {
+    install_ghosty_from_ghostty_ubuntu: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 struct Setupfile {
     packages: Option<Packages>,
     ssh: Option<Ssh>,
@@ -72,6 +77,7 @@ struct Setupfile {
     ubuntu: Option<Ubuntu>,
     rustup: Option<Rustup>,
     uv: Option<Uv>,
+    ghostty: Option<Ghostty>,
 }
 
 fn get_home() -> String {
@@ -708,6 +714,38 @@ fn setup_uv(uv: &Uv) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn setup_ghostty(ghostty: &Ghostty) -> Result<(), Box<dyn std::error::Error>> {
+    let ghostty_installed = std::process::Command::new("which")
+    .arg("ghostty")
+    .stdout(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null())
+    .status()?
+    .success();
+
+    if !ghostty_installed && ghostty.install_ghosty_from_ghostty_ubuntu.unwrap_or_default() {
+        println!("Downloading ghostty deb package installer … ");
+
+        let body = reqwest::blocking::get("https://raw.githubusercontent.com/mkasberg/ghostty-ubuntu/HEAD/install.sh")?.text()?;
+
+        let cache_path = get_cache_path();
+
+        let mut file = std::fs::File::create(cache_path.clone() + "/ghostty_install.sh")?;
+        use std::io::Write;
+        file.write_all(body.as_bytes())?;
+
+        println!("Installing ghostty … ");
+
+        let _status = std::process::Command::new("bash")
+        .arg(cache_path + "/ghostty_install.sh")
+        .status()?;
+
+    } else {
+        println!("ghostty already installed");
+    }
+
+    Ok(())
+}
+
 fn file_to_list(filename: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     use std::io::BufRead;
 
@@ -874,6 +912,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         setup_uv(uv)?;
     }
 
+    if let Some(ghostty) = setup.ghostty.as_ref() {
+        setup_ghostty(ghostty)?;
+    }
 
     Ok(())
 }
