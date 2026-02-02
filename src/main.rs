@@ -194,7 +194,8 @@ fn setup_ssh_key(no_passphrase: bool) -> Result<(), Box<dyn std::error::Error>> 
     }
     println!("");
 
-    let output = if no_passphrase {
+    println!("==============================================================================");
+    let _status = if no_passphrase {
         std::process::Command::new("ssh-keygen")
             .arg("-t")
             .arg("ed25519")
@@ -202,7 +203,7 @@ fn setup_ssh_key(no_passphrase: bool) -> Result<(), Box<dyn std::error::Error>> 
             .arg(&(get_home() + "/.ssh/id_ed25519"))
             .arg("-N")
             .arg("")
-            .output()
+            .status()
             .expect("failed to execute process")
     } else {
         std::process::Command::new("ssh-keygen")
@@ -210,12 +211,10 @@ fn setup_ssh_key(no_passphrase: bool) -> Result<(), Box<dyn std::error::Error>> 
             .arg("ed25519")
             .arg("-f")
             .arg(&(get_home() + "/.ssh/id_ed25519"))
-            .output()
+            .status()
             .expect("failed to execute process")
     };
-
-    println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-    println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+    println!("==============================================================================");
 
     let mut file = std::fs::File::open(&(get_home() + "/.ssh/id_ed25519.pub"))?;
     let mut public_key = String::new();
@@ -242,15 +241,14 @@ fn setup_git(git: &Git) -> Result<(), Box<dyn std::error::Error>> {
             .stderr(std::process::Stdio::null())
             .status()?
             .success() {
-                let output = std::process::Command::new("git")
+                println!("==============================================================================");
+                let _status = std::process::Command::new("git")
                     .arg("config")
                     .arg("--global")
                     .arg("user.name")
                     .arg(git_name)
-                    .output()?;
-
-                println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-                println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+                    .status()?;
+                println!("==============================================================================");
             }
     }
 
@@ -263,15 +261,14 @@ fn setup_git(git: &Git) -> Result<(), Box<dyn std::error::Error>> {
             .stderr(std::process::Stdio::null())
             .status()?
             .success() {
-                let output = std::process::Command::new("git")
+                println!("==============================================================================");
+                let _status = std::process::Command::new("git")
                     .arg("config")
                     .arg("--global")
                     .arg("user.email")
                     .arg(git_email)
-                    .output()?;
-
-                println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-                println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+                    .status()?;
+                println!("==============================================================================");
             }
     }
 
@@ -324,14 +321,13 @@ fn update_repository(repository: &Repository) -> Result<(), Box<dyn std::error::
 
     println!("Updating repository: {} -> {}", repository.source, repository.target);
 
-    let output = std::process::Command::new("git")
+    println!("==============================================================================");
+    let _status = std::process::Command::new("git")
         .arg("pull")
         .current_dir(target)
-        .output()
+        .status()
         .expect("failed to execute process");
-
-    println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-    println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+    println!("==============================================================================");
 
     Ok(())
 }
@@ -350,35 +346,32 @@ fn synchronise_repository(repository: &Repository) -> Result<(), Box<dyn std::er
 
     println!("Synchronising repository: {} -> {}", repository.source, repository.target);
 
-    let output = std::process::Command::new("git")
+    println!("==============================================================================");
+    let _status = std::process::Command::new("git")
         .arg("commit")
         .arg("-am")
         .arg("autocommit")
         .current_dir(&target)
-        .output()
+        .status()
         .expect("failed to execute process");
+    println!("==============================================================================");
 
-    println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-    println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
-
-    let output = std::process::Command::new("git")
+    println!("==============================================================================");
+    let _status = std::process::Command::new("git")
         .arg("pull")
         .arg("-r")
         .current_dir(&target)
-        .output()
+        .status()
         .expect("failed to execute process");
+    println!("==============================================================================");
 
-    println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-    println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
-
-    let output = std::process::Command::new("git")
+    println!("==============================================================================");
+    let _status = std::process::Command::new("git")
         .arg("push")
         .current_dir(&target)
-        .output()
+        .status()
         .expect("failed to execute process");
-
-    println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-    println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+    println!("==============================================================================");
 
     Ok(())
 }
@@ -387,25 +380,25 @@ fn install_packages(packages: Vec<String>, assume_yes: bool) -> Result<(), Box<d
     print!("Installing packages … ");
     if packages.len() > 0 {
         println!("");
-        let output = if assume_yes {
+        println!("==============================================================================");
+        let _status = if assume_yes {
             std::process::Command::new("sudo")
                 .arg("apt")
                 .arg("install")
                 .arg("--yes")
                 .args(packages)
-                .output()
+                .status()
                 .expect("failed to execute process")
         } else {
             std::process::Command::new("sudo")
                 .arg("apt")
                 .arg("install")
                 .args(packages)
-                .output()
+                .status()
                 .expect("failed to execute process")
         };
 
-        println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-        println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+        println!("==============================================================================");
     } else {
         println!("No packages to install");
     }
@@ -417,23 +410,23 @@ fn remove_packages(packages: Vec<String>, assume_yes: bool) -> Result<(), Box<dy
     print!("Removing packages … ");
     if packages.len() > 0 {
         println!("");
-        let output = if assume_yes {
+        println!("==============================================================================");
+        let _status = if assume_yes {
             std::process::Command::new("sudo")
                 .arg("apt")
                 .arg("remove")
                 .arg("--yes")
                 .args(packages)
-                .output()?
+                .status()?
         } else {
             std::process::Command::new("sudo")
                 .arg("apt")
                 .arg("remove")
                 .args(packages)
-                .output()?
+                .status()?
         };
 
-        println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-        println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+        println!("==============================================================================");
     } else {
         println!("No packages to remove");
     }
@@ -508,16 +501,16 @@ fn create_file_with_content_if_not_exists_root(filename: &str, content: &str) ->
     use std::io::Write;
     file.write_all(content.as_bytes())?;
 
-    std::process::Command::new("mkdir")
+    let _status = std::process::Command::new("mkdir")
                 .arg("-p")
                 .arg(directory)
-                .output()?;
+                .status()?;
 
-    std::process::Command::new("sudo")
+    let _status = std::process::Command::new("sudo")
                 .arg("cp")
                 .arg(cache_path + "/" + basename)
                 .arg(filename)
-                .output()?;
+                .status()?;
 
     Ok(())
 }
@@ -541,15 +534,14 @@ fn ubuntu_remove_snap_and_install_firefox_ppa(assume_yes: bool) -> Result<(), Bo
             }
         }
 
-        let output = std::process::Command::new("sudo")
+        println!("==============================================================================");
+        let _status = std::process::Command::new("sudo")
                 .arg("apt")
                 .arg("purge")
                 .arg("--yes")
                 .arg("snapd")
-                .output()?;
-
-        println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-        println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+                .status()?;
+        println!("==============================================================================");
     } else {
         println!("snap already removed");
     }
@@ -567,24 +559,22 @@ fn ubuntu_remove_snap_and_install_firefox_ppa(assume_yes: bool) -> Result<(), Bo
     print!("Installing Firefox from PPA … ");
     if !package_installed("firefox")? {
         println!("");
-        let output = std::process::Command::new("sudo")
+        println!("==============================================================================");
+        let _status = std::process::Command::new("sudo")
             .arg("add-apt-repository")
             .arg("ppa:mozillateam/ppa")
-            .output()?;
+            .status()?;
+        println!("==============================================================================");
 
-        println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-        println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
-
-        let output = std::process::Command::new("sudo")
+        println!("==============================================================================");
+        let _status = std::process::Command::new("sudo")
             .arg("apt")
             .arg("install")
             .arg("--yes")
             .arg("firefox")
             .arg("thunderbird")
-            .output()?;
-
-        println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-        println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+            .status()?;
+        println!("==============================================================================");
 
         create_file_with_content_if_not_exists_root(FIREFOX_PPA_FILENAME, FIREFOX_PPA_FILE_CONTENT)?;
         create_file_with_content_if_not_exists_root(THUNDERBIRD_PPA_FILENAME, THUNDERBIRD_PPA_FILE_CONTENT)?;
@@ -641,27 +631,24 @@ fn setup_rustup(rustup: &Rustup) -> Result<(), Box<dyn std::error::Error>> {
 
             println!("Installing rust … ");
 
-            let output = std::process::Command::new("sh")
+            println!("==============================================================================");
+            let _status = std::process::Command::new("sh")
                 .arg(cache_path + "/rustup.sh")
                 .arg("-y")
-                .output()?;
-
-            println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-            println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+                .status()?;
+            println!("==============================================================================");
         } else {
             println!("Rustup already installed");
             println!("Installing rust …");
 
-            let output = std::process::Command::new("rustup")
+            println!("==============================================================================");
+            let _status = std::process::Command::new("rustup")
                 .arg("toolchain")
                 .arg("install")
                 .arg("stable")
-                .output()?;
-
-            println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-            println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+                .status()?;
+            println!("==============================================================================");
         }
-
     }
 
     if rustup_installed && rust_installed && rustup.update_rust.unwrap_or_default() {
@@ -669,12 +656,11 @@ fn setup_rustup(rustup: &Rustup) -> Result<(), Box<dyn std::error::Error>> {
         println!("Rust already installed");
         println!("Updating rust …");
 
-        let output = std::process::Command::new("rustup")
+        println!("==============================================================================");
+        let _status = std::process::Command::new("rustup")
             .arg("update")
-            .output()?;
-
-        println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-        println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+            .status()?;
+        println!("==============================================================================");
     }
 
     Ok(())
@@ -701,12 +687,11 @@ fn setup_uv(uv: &Uv) -> Result<(), Box<dyn std::error::Error>> {
 
         println!("Installing uv … ");
 
-        let output = std::process::Command::new("sh")
+        println!("==============================================================================");
+        let _status = std::process::Command::new("sh")
         .arg(cache_path + "/uv_install.sh")
-        .output()?;
-
-        println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
-        println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+        .status()?;
+        println!("==============================================================================");
     } else {
         println!("uv already installed");
     }
@@ -735,10 +720,11 @@ fn setup_ghostty(ghostty: &Ghostty) -> Result<(), Box<dyn std::error::Error>> {
 
         println!("Installing ghostty … ");
 
+        println!("==============================================================================");
         let _status = std::process::Command::new("bash")
         .arg(cache_path + "/ghostty_install.sh")
         .status()?;
-
+        println!("==============================================================================");
     } else {
         println!("ghostty already installed");
     }
