@@ -298,12 +298,14 @@ fn setup_repository(repository: &Repository) -> Result<bool, Box<dyn std::error:
         std::fs::create_dir_all(base)?;
     }
 
-    std::process::Command::new("git")
+    println!("==============================================================================");
+    let _status = std::process::Command::new("git")
         .arg("clone")
         .arg(&repository.source)
         .arg(&target)
-        .output()
+        .status()
         .expect("failed to execute process");
+    println!("==============================================================================");
 
     Ok(true)
 }
