@@ -135,7 +135,8 @@ fn write_config(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn get_setup(mut source: String) -> Result<Setupfile, Box<dyn std::error::Error>> {
+fn get_setup(source: &str) -> Result<Setupfile, Box<dyn std::error::Error>> {
+    let mut source = source.to_owned();
     if source.starts_with("http://") || source.starts_with("https://") {
         if source.starts_with("https://github.com/") && source.contains("blob") {
             #[cfg(debug_assertions)]
@@ -816,23 +817,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(())
     }
 
+    let mut write_config_if_setup_found = false;
+
+    let mut config = read_config()?;
+
     if let Some(param) = param {
         if param == "update" {
             return update();
         }
 
-        let mut config = read_config()?;
         config.source = Some(param);
 
-        // TODO: Maybe only write config if we cound read the setupfile
-        write_config(config)?;
+        write_config_if_setup_found = true;
     }
-
-    let config = read_config()?;
 
     println!("Using config file at: {}", config.source.as_ref().unwrap());
 
-    let setup = get_setup(config.source.unwrap())?;
+    let setup = get_setup(config.source.as_ref().unwrap())?;
+
+    if write_config_if_setup_found {
+        write_config(config)?;
+    }
 
     #[cfg(debug_assertions)]
     println!("{:#?}", setup);
