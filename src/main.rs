@@ -69,6 +69,11 @@ struct Ghostty {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
+struct Signal {
+    install_signal_desktop_ubuntu: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 struct Setupfile {
     packages: Option<Packages>,
     ssh: Option<Ssh>,
@@ -79,6 +84,7 @@ struct Setupfile {
     rustup: Option<Rustup>,
     uv: Option<Uv>,
     ghostty: Option<Ghostty>,
+    signal: Option<Signal>,
 }
 
 fn get_home() -> String {
@@ -738,6 +744,92 @@ fn setup_ghostty(ghostty: &Ghostty) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/* Install Signal desktop according to the Signal desktop installation instruction for Ubuntu:
+
+  # NOTE: These instructions only work for 64-bit Debian-based
+  # Linux distributions such as Ubuntu, Mint etc.
+
+  # 1. Install our official public software signing key:
+  wget -O- https://updates.signal.org/desktop/apt/keys.asc | gpg --dearmor > signal-desktop-keyring.gpg;
+  cat signal-desktop-keyring.gpg | sudo tee /usr/share/keyrings/signal-desktop-keyring.gpg > /dev/null
+
+  # 2. Add our repository to your list of repositories:
+  wget -O signal-desktop.sources https://updates.signal.org/static/desktop/apt/signal-desktop.sources;
+  cat signal-desktop.sources | sudo tee /etc/apt/sources.list.d/signal-desktop.sources > /dev/null
+
+  # 3. Update your package database and install Signal:
+  sudo apt update && sudo apt install signal-desktop
+*/
+fn setup_signal(signal: &Signal) -> Result<(), Box<dyn std::error::Error>> {
+    let signal_installed = std::process::Command::new("which")
+    .arg("signal-desktop")
+    .stdout(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null())
+    .status()?
+    .success();
+
+    if !signal_installed && signal.install_signal_desktop_ubuntu.unwrap_or_default() {
+        println!("Downloading Signal desktop package repository sources … ");
+
+        let body = reqwest::blocking::get("https://updates.signal.org/static/desktop/apt/signal-desktop.sources")?.text()?;
+
+        let cache_path = get_cache_path();
+
+        let mut file = std::fs::File::create(cache_path.clone() + "/signal_desktop_repository.source")?;
+        use std::io::Write;
+        file.write_all(body.as_bytes())?;
+
+        println!("Downloading Signal desktop package repository key … ");
+
+        let body = reqwest::blocking::get("https://updates.signal.org/desktop/apt/keys.asc")?.text()?;
+
+        let cache_path = get_cache_path();
+
+        let mut file = std::fs::File::create(cache_path.clone() + "/signal_desktop_repository_keys.asc")?;
+        file.write_all(body.as_bytes())?;
+
+        println!("Deamor Repository key … ");
+
+        println!("==============================================================================");
+        let _status = std::process::Command::new("bash")
+        .arg("-c")
+        .arg("echo ".to_string() + &cache_path + "/signal_desktop_repository_keys.asc | gpg --deamor > " + &cache_path + "/signal_desktop_repository_keyring.gpg")
+        .status()?;
+        println!("==============================================================================");
+
+        println!("Installing Signal desktop repository sources … ");
+
+        println!("==============================================================================");
+        let _status = std::process::Command::new("bash")
+        .arg("-c")
+        .arg("sudo mv ".to_string() + &cache_path + "/signal_desktop_repository.source /etc/apt/sources.list.d/signal-desktop.sources")
+        .status()?;
+        println!("==============================================================================");
+
+        println!("Installing Signal desktop repository key … ");
+
+        println!("==============================================================================");
+        let _status = std::process::Command::new("bash")
+        .arg("-c")
+        .arg("sudo mv ".to_string() + &cache_path + "/signal_desktop_repository_keyring.gpg /usr/share/keyrings/signal-desktop-keyring.gpg")
+        .status()?;
+        println!("==============================================================================");
+
+        println!("Installing Signal desktop … ");
+
+        println!("==============================================================================");
+        let _status = std::process::Command::new("bash")
+        .arg("-c")
+        .arg("sudo apt update && sudo apt install signal-desktop")
+        .status()?;
+        println!("==============================================================================");
+    } else {
+        println!("Signal desktop already installed");
+    }
+
+    Ok(())
+}
+
 fn file_to_list(filename: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     use std::io::BufRead;
 
@@ -910,6 +1002,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(ghostty) = setup.ghostty.as_ref() {
         setup_ghostty(ghostty)?;
+    }
+
+    if let Some(signal) = setup.signal.as_ref() {
+        setup_signal(signal)?;
     }
 
     Ok(())
