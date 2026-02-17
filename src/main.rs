@@ -16,6 +16,7 @@ struct Ssh {
 struct Git {
     name: Option<String>,
     email: Option<String>,
+    overwrite_existing: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -234,14 +235,15 @@ fn setup_ssh_key(no_passphrase: bool) -> Result<(), Box<dyn std::error::Error>> 
 
 fn setup_git(git: &Git) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(git_name) = git.name.as_ref() {
-        if !std::process::Command::new("git")
+        let git_name_already_set = std::process::Command::new("git")
             .arg("config")
-            .arg("get")
+            .arg("--global")
             .arg("user.name")
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .status()?
-            .success() {
+            .success();
+        if !git_name_already_set || git.overwrite_existing.unwrap_or_default() {
                 println!("==============================================================================");
                 let _status = std::process::Command::new("git")
                     .arg("config")
@@ -254,14 +256,15 @@ fn setup_git(git: &Git) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if let Some(git_email) = git.email.as_ref() {
-        if !std::process::Command::new("git")
+        let git_email_already_set = std::process::Command::new("git")
             .arg("config")
-            .arg("get")
+            .arg("--global")
             .arg("user.email")
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .status()?
-            .success() {
+            .success();
+        if !git_email_already_set || git.overwrite_existing.unwrap_or_default() {
                 println!("==============================================================================");
                 let _status = std::process::Command::new("git")
                     .arg("config")
