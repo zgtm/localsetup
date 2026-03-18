@@ -47,6 +47,19 @@ struct Symlink {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
+struct XdgUserDirs {
+    move_existing: Option<bool>,
+    desktop: Option<String>,
+    documents: Option<String>,
+    download: Option<String>,
+    music: Option<String>,
+    pictures: Option<String>,
+    publicshare: Option<String>,
+    templates: Option<String>,
+    videos: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 struct Ubuntu {
     remove_snap_and_install_firefox_ppa: Option<bool>,
     remove_snap_and_install_firefox_ppa_yes_delete_my_bookmarks_and_everything: Option<bool>,
@@ -82,6 +95,7 @@ struct Setupfile {
     git: Option<Git>,
     repositories: Option<Vec<Repository>>,
     symlink: Option<Symlink>,
+    xdg_user_dirs: Option<XdgUserDirs>,
     ubuntu: Option<Ubuntu>,
     rustup: Option<Rustup>,
     uv: Option<Uv>,
@@ -90,7 +104,7 @@ struct Setupfile {
 }
 
 fn get_home() -> String {
-    return std::env::var("HOME").unwrap_or_default()
+    return std::env::var("HOME").unwrap()
 }
 
 fn get_config_path() -> String {
@@ -443,6 +457,76 @@ fn remove_packages(packages: Vec<String>, assume_yes: bool) -> Result<(), Box<dy
         println!("==============================================================================");
     } else {
         println!("No packages to remove");
+    }
+
+    Ok(())
+}
+
+
+fn set_xdg_user_dirs(xdg_user_dirs: &XdgUserDirs) -> Result<(), Box<dyn std::error::Error>> {
+    let move_existing = xdg_user_dirs.move_existing.unwrap_or(false);
+    let home = get_home();
+    let dirs = [("DESKTOP", &xdg_user_dirs.desktop),
+                ("DOWNLOAD", &xdg_user_dirs.download),
+                ("MUSIC", &xdg_user_dirs.music),
+                ("PICTURES", &xdg_user_dirs.pictures),
+                ("PUBLICSHARE", &xdg_user_dirs.publicshare),
+                ("TEMPLATES", &xdg_user_dirs.templates),
+                ("VIDEOS", &xdg_user_dirs.videos)];
+
+    for dir in dirs {
+        if let Some(new_location) = dir.1 {
+            let id = dir.0;
+
+            let output = std::process::Command::new("xdg-user-dir")
+                .arg(&id)
+                .output()?;
+            let current_location = &String::from_utf8(output.stdout).unwrap().trim().to_owned();
+
+            if current_location == new_location {
+                println!("xdg-user-dir {} already at location {}", &id, &new_location);
+                continue;
+            }
+
+            println!("Setting xdg-user-dir {} to location {}", &id, &new_location);
+
+            let new_location_absolute = new_location.replace("$HOME", &home);
+
+            let _status = std::process::Command::new("xdg-user-dirs-update")
+                .arg("--set")
+                .arg(&id)
+                .arg(&new_location_absolute)
+                .status()?;
+
+            if move_existing {
+                let current_location_absolute = current_location.replace("$HOME", &home);
+                print!("Moving xdg-user-dir {} from current location {} to new location {} … ", &id, &current_location_absolute, &new_location_absolute);
+
+                let (new_location_absolute_base, _) = new_location_absolute.trim_end_matches('/').rsplit_once("/").expect("Invalid directory");
+                let _status = std::process::Command::new("mkdir")
+                    .arg("-p")
+                    .arg(&new_location_absolute_base)
+                    .status()?;
+
+                let status = std::process::Command::new("mv")
+                    .arg(&current_location_absolute)
+                    .arg(&new_location_absolute)
+                    .status()?;
+
+                if status.success() {
+                    println!("Ok");
+                } else {
+                    println!("ERROR\nError moving directory. Does the new directory already exist?");
+                }
+            } else {
+                print!("Creating xdg-user-dir {} at to new location {} …", &id, &new_location_absolute);
+
+                let _status = std::process::Command::new("mkdir")
+                    .arg("-p")
+                    .arg(&new_location_absolute)
+                    .status()?;
+            }
+        }
     }
 
     Ok(())
@@ -1090,6 +1174,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
+    }
+
+    if let Some(xdg_user_dirs) = setup.xdg_user_dirs.as_ref() {
+        set_xdg_user_dirs(xdg_user_dirs)?;
     }
 
     if let Some(ubuntu) = setup.ubuntu.as_ref() {
