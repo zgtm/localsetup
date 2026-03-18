@@ -50,6 +50,8 @@ struct Symlink {
 struct Ubuntu {
     remove_snap_and_install_firefox_ppa: Option<bool>,
     remove_snap_and_install_firefox_ppa_yes_delete_my_bookmarks_and_everything: Option<bool>,
+    remove_snap_and_install_firefox_mozilla: Option<bool>,
+    remove_snap_and_install_firefox_mozilla_yes_delete_my_bookmarks_and_everything: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -499,6 +501,22 @@ Pin: release o=LP-PPA-mozillateam
 Pin-Priority: 501
 ";
 
+const FIREFOX_MOZILLA_REPOSITORY_FILENAME: &str = "/etc/apt/sources.list.d/mozilla.sources";
+const FIREFOX_MOZILLA_REPOSITORY_FILE_CONTENT: &str = "
+Types: deb
+URIs: https://packages.mozilla.org/apt
+Suites: mozilla
+Components: main
+Signed-By: /etc/apt/keyrings/packages.mozilla.org.asc
+";
+
+const FIREFOX_MOZILLA_FILENAME: &str = "/etc/apt/preferences.d/mozilla";
+const FIREFOX_MOZILLA_FILE_CONTENT: &str = "
+Package: *
+Pin: origin packages.mozilla.org
+Pin-Priority: 1000
+";
+
 fn create_file_with_content_if_not_exists_root(filename: &str, content: &str) -> Result<(), Box<dyn std::error::Error>> {
     if path_exists(filename) {
         return Ok(());
@@ -527,7 +545,12 @@ fn create_file_with_content_if_not_exists_root(filename: &str, content: &str) ->
     Ok(())
 }
 
-fn ubuntu_remove_snap_and_install_firefox_ppa(assume_yes: bool) -> Result<(), Box<dyn std::error::Error>> {
+enum PpaOrMozilla {
+    Ppa,
+    Mozilla,
+}
+
+fn ubuntu_remove_snap_and_install_firefox_ppa_or_mozilla(ppa_or_mozilla: PpaOrMozilla, assume_yes: bool) -> Result<(), Box<dyn std::error::Error>> {
     print!("Removing snap … ");
     if package_installed("snapd")? {
         println!("");
@@ -568,47 +591,131 @@ fn ubuntu_remove_snap_and_install_firefox_ppa(assume_yes: bool) -> Result<(), Bo
         println!("done");
     }
 
-    print!("Installing Firefox from PPA … ");
-    if !package_installed("firefox")? {
-        println!("");
-        println!("==============================================================================");
-        let _status = std::process::Command::new("sudo")
-            .arg("add-apt-repository")
-            .arg("ppa:mozillateam/ppa")
-            .status()?;
-        println!("==============================================================================");
+    match ppa_or_mozilla {
+        PpaOrMozilla::Ppa => {
+            print!("Installing Firefox from PPA … ");
+            if !package_installed("firefox")? {
+                println!("");
+                println!("==============================================================================");
+                let _status = std::process::Command::new("sudo")
+                    .arg("add-apt-repository")
+                    .arg("ppa:mozillateam/ppa")
+                    .status()?;
+                println!("==============================================================================");
 
-        println!("==============================================================================");
-        let _status = std::process::Command::new("sudo")
-            .arg("apt")
-            .arg("install")
-            .arg("--yes")
-            .arg("firefox")
-            .arg("thunderbird")
-            .status()?;
-        println!("==============================================================================");
+                println!("==============================================================================");
+                let _status = std::process::Command::new("sudo")
+                    .arg("apt")
+                    .arg("install")
+                    .arg("--yes")
+                    .arg("firefox")
+                    .arg("thunderbird")
+                    .status()?;
+                println!("==============================================================================");
 
-        create_file_with_content_if_not_exists_root(FIREFOX_PPA_FILENAME, FIREFOX_PPA_FILE_CONTENT)?;
-        create_file_with_content_if_not_exists_root(THUNDERBIRD_PPA_FILENAME, THUNDERBIRD_PPA_FILE_CONTENT)?;
-    } else {
-        println!("Firefox is already installed");
+                create_file_with_content_if_not_exists_root(FIREFOX_PPA_FILENAME, FIREFOX_PPA_FILE_CONTENT)?;
+                create_file_with_content_if_not_exists_root(THUNDERBIRD_PPA_FILENAME, THUNDERBIRD_PPA_FILE_CONTENT)?;
+            } else {
+                println!("Firefox is already installed");
+            }
+
+            print!("Ensuring Firefox will be installed from PPA … ");
+            if path_exists(FIREFOX_PPA_FILENAME) && path_exists(THUNDERBIRD_PPA_FILENAME) {
+                println!("already ensured");
+            } else {
+                create_file_with_content_if_not_exists_root(FIREFOX_PPA_FILENAME, FIREFOX_PPA_FILE_CONTENT)?;
+                create_file_with_content_if_not_exists_root(THUNDERBIRD_PPA_FILENAME, THUNDERBIRD_PPA_FILE_CONTENT)?;
+                println!("done");
+            }
+        }
+        PpaOrMozilla::Mozilla => {
+            // Install according to https://support.mozilla.org/de/kb/firefox-unter-linux-installieren#w_installation-uber-die-paketverwaltung-ihrer-distribution
+            print!("Installing Mozilla repository … ");
+            if !package_installed("firefox")? {
+                println!("");
+                println!("==============================================================================");
+                let _status = std::process::Command::new("sudo")
+                    .arg("install")
+                    .arg("-d")
+                    .arg("-m")
+                    .arg("0755")
+                    .arg("/etc/apt/keyrings")
+                    .status()?;
+                println!("==============================================================================");
+
+                use std::io::Write;
+                println!("Downloading Mozilla signing key … ");
+                let body = reqwest::blocking::get("https://packages.mozilla.org/apt/repo-signing-key.gpg")?.text()?;
+                let cache_path = get_cache_path();
+                let mut file = std::fs::File::create(cache_path.clone() + "/mozilla_repo_signing_key.gpg")?;
+                file.write_all(body.as_bytes())?;
+
+                print!("Checking Mozilla signing key integrity … ");
+                let output = std::process::Command::new("gpg")
+                    .arg("gpg")
+                    .arg("-n")
+                    .arg("-q")
+                    .arg("--import")
+                    .arg("--import-options")
+                    .arg("import-show")
+                    .arg(cache_path.clone() + "/mozilla_repo_signing_key.gpg")
+                    .output()?;
+                if String::from_utf8_lossy(&output.stdout).contains("35BAA0B33E9EB396F59CA838C0BA5CE6DC6315A3") {
+                    println!("Ok");
+                } else {
+                    println!("ERROR: SIGNING KEY MISSMATCH. ABORTING.");
+                    panic!("ERROR: SIGNING KEY MISSMATCH. ABORTING.");
+                }
+
+                println!("Installing Mozilla repository key … ");
+
+                println!("==============================================================================");
+                let _status = std::process::Command::new("bash")
+                    .arg("-c")
+                    .arg("sudo mv ".to_string() + &cache_path + "/mozilla_repo_signing_key.gpg /etc/apt/keyrings/packages.mozilla.org.asc")
+                    .status()?;
+                println!("==============================================================================");
+
+                create_file_with_content_if_not_exists_root(FIREFOX_MOZILLA_REPOSITORY_FILENAME, FIREFOX_MOZILLA_REPOSITORY_FILE_CONTENT)?;
+
+                println!("==============================================================================");
+                let _status = std::process::Command::new("sudo")
+                    .arg("apt")
+                    .arg("update")
+                    .status()?;
+                println!("==============================================================================");
+
+                println!("==============================================================================");
+                let _status = std::process::Command::new("sudo")
+                    .arg("apt")
+                    .arg("install")
+                    .arg("--yes")
+                    .arg("firefox")
+                    .status()?;
+                println!("==============================================================================");
+            } else {
+                println!("Firefox is already installed");
+            }
+
+            print!("Ensuring Firefox will be installed from PPA … ");
+            if path_exists(FIREFOX_MOZILLA_FILENAME) {
+                println!("already ensured");
+            } else {
+                create_file_with_content_if_not_exists_root(FIREFOX_MOZILLA_FILENAME, FIREFOX_MOZILLA_FILE_CONTENT)?;
+                println!("done");
+            }
+        }
     }
-
-    print!("Ensuring Firefox will be installed from PPA … ");
-    if path_exists(FIREFOX_PPA_FILENAME) && path_exists(THUNDERBIRD_PPA_FILENAME) {
-        println!("already ensured");
-    } else {
-        create_file_with_content_if_not_exists_root(FIREFOX_PPA_FILENAME, FIREFOX_PPA_FILE_CONTENT)?;
-        create_file_with_content_if_not_exists_root(THUNDERBIRD_PPA_FILENAME, THUNDERBIRD_PPA_FILE_CONTENT)?;
-        println!("done");
-    }
-
     Ok(())
 }
 
 fn ubuntu_specifics(ubuntu: &Ubuntu) -> Result<(), Box<dyn std::error::Error>> {
     if ubuntu.remove_snap_and_install_firefox_ppa.unwrap_or_default() {
-        ubuntu_remove_snap_and_install_firefox_ppa(ubuntu.remove_snap_and_install_firefox_ppa_yes_delete_my_bookmarks_and_everything.unwrap_or_default())?;
+        ubuntu_remove_snap_and_install_firefox_ppa_or_mozilla(PpaOrMozilla::Ppa, ubuntu.remove_snap_and_install_firefox_ppa_yes_delete_my_bookmarks_and_everything.unwrap_or_default())?;
+    }
+
+    if ubuntu.remove_snap_and_install_firefox_mozilla.unwrap_or_default() {
+        ubuntu_remove_snap_and_install_firefox_ppa_or_mozilla(PpaOrMozilla::Mozilla, ubuntu.remove_snap_and_install_firefox_ppa_yes_delete_my_bookmarks_and_everything.unwrap_or_default())?;
     }
 
     Ok(())
@@ -780,11 +887,8 @@ fn setup_signal(signal: &Signal) -> Result<(), Box<dyn std::error::Error>> {
         file.write_all(body.as_bytes())?;
 
         println!("Downloading Signal desktop package repository key … ");
-
         let body = reqwest::blocking::get("https://updates.signal.org/desktop/apt/keys.asc")?.text()?;
-
         let cache_path = get_cache_path();
-
         let mut file = std::fs::File::create(cache_path.clone() + "/signal_desktop_repository_keys.asc")?;
         file.write_all(body.as_bytes())?;
 
