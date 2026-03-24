@@ -1034,7 +1034,7 @@ fn file_to_list(filename: &str) -> Result<Vec<String>, Box<dyn std::error::Error
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-fn check_for_updates() -> Result<bool, Box<dyn std::error::Error>> {
+fn update_available() -> Result<bool, Box<dyn std::error::Error>> {
     println!("Checking for updates …");
 
     #[derive(Deserialize)]
@@ -1068,7 +1068,7 @@ fn check_for_updates() -> Result<bool, Box<dyn std::error::Error>> {
 }
 
 fn update() -> Result<(), Box<dyn std::error::Error>> {
-    if !check_for_updates()? {
+    if !update_available()? {
         return Ok(())
     }
 
@@ -1091,38 +1091,97 @@ fn update() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+static HELP_MESSAGE: &str = "Usage:\n  \
+                             localsetup                                    - Runs localsetup and ensures a previously given config is applied.\n  \
+                             localsetup init [<config file or repository]  - Installs localsetup to $HOME/.local/bin/ and optionally sets config\n  \
+                             localsetup config <config file or repository> - Sets config to a given file (local file or https://) or repository (git://)\n  \
+                             localsetup help                               - Shows this message";
+
+fn help() -> Result<(), Box<dyn std::error::Error>> {
+    println!("{}", HELP_MESSAGE);
+    Ok(())
+}
+
+fn init(_: Option<String>) -> Result<(), Box<dyn std::error::Error>> { unimplemented!() }
+
+fn update_setupfile(source: String) -> Result<(), Box<dyn std::error::Error>> {
+    let mut config = read_config()?;
+    config.source = Some(source.clone());
+
+    // Check that we can read the setupfile
+    get_setup(config.source.as_ref().unwrap())?;
+
+    // If we're still here, the check was successful
+    write_config(config)?;
+
+    println!("Config file successfully set to {}", source);
+    Ok(())
+}
+
+struct ArgsError {
+    message: String,
+}
+impl std::fmt::Display for ArgsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {write!(f, "{}\n\n{}", self.message, HELP_MESSAGE)}
+}
+impl std::fmt::Debug for ArgsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {write!(f, "{}", self)}
+}
+impl std::error::Error for ArgsError {}
+
+fn args_error(message: &str) -> Result<(), Box<dyn std::error::Error>> {
+    Err(Box::new(ArgsError{message: message.to_string()}))
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("localsetup version {}", VERSION);
+    eprintln!("localsetup version {}\n", VERSION);
 
     let mut args = std::env::args();
     let _ = args.next(); // Ignore program name
     let param = args.next();
-    if args.next().is_some() {
-        eprintln!("Error: Too many arguments.");
-        return Ok(())
-    }
-
-    let mut write_config_if_setup_found = false;
-
-    let mut config = read_config()?;
 
     if let Some(param) = param {
-        if param == "update" {
-            return update();
+        if param == "update" || param == "help" {
+            if args.next().is_some() {
+                return args_error("Too many arguments.");
+            }
+
+            if param == "update" {
+                return update();
+            }
+            return help();
         }
 
-        config.source = Some(param);
+        if param == "init" || param == "config" {
+            let setupfile = args.next();
 
-        write_config_if_setup_found = true;
+            if args.next().is_some() {
+                return args_error("Too many arguments.");
+            }
+
+            if param == "init" {
+                return init(setupfile)
+            }
+
+            if let Some(setupfile) = setupfile {
+                return update_setupfile(setupfile);
+            } else {
+                return args_error("Missing argument <config file or repository>.");
+            }
+        }
+
+        return args_error(&format!("Unknown command '{}'", param));
     }
+
+    localsetup()
+}
+
+fn localsetup() -> Result<(), Box<dyn std::error::Error>> {
+    let config = read_config()?;
 
     println!("Using config file at: {}", config.source.as_ref().unwrap());
 
     let setup = get_setup(config.source.as_ref().unwrap())?;
-
-    if write_config_if_setup_found {
-        write_config(config)?;
-    }
 
     #[cfg(debug_assertions)]
     println!("{:#?}", setup);
