@@ -1043,12 +1043,12 @@ fn check_for_updates() -> Result<bool, Box<dyn std::error::Error>> {
     }
     let client = reqwest::blocking::Client::new();
     let latest_release = client.get("https://api.github.com/repos/zgtm/localsetup/releases/latest")
-        .header(reqwest::header::USER_AGENT, "zgtm/localsetup 0.0.2")
+        .header(reqwest::header::USER_AGENT, &format!("zgtm/localsetup {}", VERSION))
         .send()?
         .json::<GithubRelease>().map_err(|e| {
             // Request again, so we can print the response
             let latest_release = client.get("https://api.github.com/repos/zgtm/localsetup/releases/latest")
-                .header(reqwest::header::USER_AGENT, "zgtm/localsetup 0.0.2")
+                .header(reqwest::header::USER_AGENT, &format!("zgtm/localsetup {}", VERSION))
                 .send()
                 .map(|r| r.text().unwrap_or_default())
                 .unwrap_or_default();
