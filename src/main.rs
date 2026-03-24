@@ -1102,11 +1102,32 @@ fn help() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn init(_: Option<String>) -> Result<(), Box<dyn std::error::Error>> { unimplemented!() }
+fn init(program_name: String, setupfile: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+    print!("Installing localsetup to $HOME/.local/bin … ");
 
-fn update_setupfile(source: String) -> Result<(), Box<dyn std::error::Error>> {
+    let home = get_home();
+
+    let status = std::process::Command::new("cp")
+        .arg(program_name)
+        .arg(format!("{}/.local/bin/localsetup", home))
+        .status()?;
+
+    if status.success() {
+        println!("Ok");
+    } else {
+        println!("ERROR\nError moving directory. Does the new directory already exist?")
+    }
+
+    if let Some(setupfile) = setupfile {
+        update_setupfile(setupfile)
+    } else {
+        Ok(())
+    }
+}
+
+fn update_setupfile(setupfile: String) -> Result<(), Box<dyn std::error::Error>> {
     let mut config = read_config()?;
-    config.source = Some(source.clone());
+    config.source = Some(setupfile.clone());
 
     // Check that we can read the setupfile
     get_setup(config.source.as_ref().unwrap())?;
@@ -1114,7 +1135,7 @@ fn update_setupfile(source: String) -> Result<(), Box<dyn std::error::Error>> {
     // If we're still here, the check was successful
     write_config(config)?;
 
-    println!("Config file successfully set to {}", source);
+    println!("Config file successfully set to {}", setupfile);
     Ok(())
 }
 
@@ -1137,7 +1158,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("localsetup version {}\n", VERSION);
 
     let mut args = std::env::args();
-    let _ = args.next(); // Ignore program name
+    let program_name = args.next();
     let param = args.next();
 
     if let Some(param) = param {
@@ -1160,7 +1181,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             if param == "init" {
-                return init(setupfile)
+                return init(program_name.unwrap(), setupfile)
             }
 
             if let Some(setupfile) = setupfile {
