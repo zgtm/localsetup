@@ -1254,7 +1254,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     localsetup()
 }
 
+fn print_line() {
+    if let Some(termsize::Size{cols, ..}) = termsize::get() {
+        for i in 0..cols {
+            print!("=");
+        }
+    }
+}
+
 fn localsetup() -> Result<(), Box<dyn std::error::Error>> {
+    print_line();
+
     let config = read_config()?;
 
     println!("Using config file at: {}", config.source.as_ref().unwrap());
