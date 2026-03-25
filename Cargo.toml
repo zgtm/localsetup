@@ -1,6 +1,6 @@
 [package]
 name = "localsetup"
-version = "0.0.9"
+version = "0.0.8"
 edition = "2024"
 description = "Setup your local computer / user automatically"
 license = "GPL-3.0-only"
@@ -12,3 +12,5 @@ serde = {version = "1.0", features = ["derive"]}
 serde_json = {version = "1.0"}
 sha2 = "0.10"
 termsize = "0.1"
+minisign-verify = "0.2.5"
+bytes = "*"

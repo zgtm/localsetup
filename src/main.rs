@@ -1,5 +1,6 @@
 use reqwest;
 use serde::{Serialize, Deserialize};
+use std::io::Write;
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct Config {
@@ -1125,21 +1126,40 @@ fn update_available() -> Result<bool, Box<dyn std::error::Error>> {
 }
 
 fn update() -> Result<(), Box<dyn std::error::Error>> {
+    use bytes::Buf;
     if !update_available()? {
         return Ok(())
     }
 
-    println!("Running update …");
+    print!("Downloading update … ");
+    let _ = std::io::stdout().flush();
+    let binary = reqwest::blocking::get("https://github.com/zgtm/localsetup/releases/latest/download/localsetup")?;
+    println!("done");
+
+    print!("Verifying signature … ");
+    let _ = std::io::stdout().flush();
+    let signature = reqwest::blocking::get("https://github.com/zgtm/localsetup/releases/latest/download/localsetup.minisig")?;
+
+    let public_key = minisign_verify::PublicKey::from_base64("RWTWs33MYVx2ktrJWND2KDBsbzdew8F/JKNTYdKC8G+rj2bYzlhUZ6Af")
+        .expect("Unable to decode the public key");
+
+    let signature = minisign_verify::Signature::decode(&signature.text().unwrap()).expect("Unable to decode the signature");
+    let binary = binary.bytes().unwrap();
+
+    public_key.verify(&binary, &signature, false).expect("Signature didn't verify");
+    println!("done");
+
+    print!("Installing update … ");
+    let _ = std::io::stdout().flush();
     let _ = std::fs::remove_file(get_home() + "/.local/bin/__localsetup_old");
     let _ = std::fs::rename(get_home() + "/.local/bin/localsetup", get_home() + "/.local/bin/__localsetup_old");
-    print!("Downloading update … ");
-    let mut response = reqwest::blocking::get("https://github.com/zgtm/localsetup/releases/latest/download/localsetup")?;
     let mut file = std::fs::File::create(get_home() + "/.local/bin/localsetup")?;
-    std::io::copy(&mut response, &mut file)?;
+    std::io::copy(&mut binary.reader(), &mut file)?;
     println!("done");
 
     #[cfg(debug_assertions)]
     print!("Make file executable … ");
+    let _ = std::io::stdout().flush();
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(get_home() + "/.local/bin/localsetup", std::fs::Permissions::from_mode(0o755))?;
     #[cfg(debug_assertions)]
@@ -1256,7 +1276,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn print_line() {
     if let Some(termsize::Size{cols, ..}) = termsize::get() {
-        for i in 0..cols {
+        for _i in 0..cols {
             print!("=");
         }
     }
