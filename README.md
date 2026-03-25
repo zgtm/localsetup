@@ -20,7 +20,12 @@ or if `curl` is not installed yet
 wget -P ~/.local/bin/localsetup  https://github.com/zgtm/localsetup/releases/latest/download/localsetup  && chmod a+x ~/.local/bin/localsetup
 ```
 
-or build and install it with cargo:
+The binary is signed with minisign. The signature (`localsetup.minisig`) can be verified with:
+```
+minisign -Vm localsetup -P RWTWs33MYVx2ktrJWND2KDBsbzdew8F/JKNTYdKC8G+rj2bYzlhUZ6Af
+```
+
+Alternatively, you can build and install it with cargo:
 ```
 cargo install localsetup
 ```
