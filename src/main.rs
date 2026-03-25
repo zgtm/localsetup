@@ -536,14 +536,18 @@ fn set_xdg_user_dirs(xdg_user_dirs: &XdgUserDirs) -> Result<(), Box<dyn std::err
                 .output()?;
             let current_location = &String::from_utf8(output.stdout).unwrap().trim().to_owned();
 
-            if current_location == new_location {
+            let new_location_absolute = new_location.replace("$HOME", &home);
+            // Current location might or might not be already absolute, but here we need to make sure
+            let current_location_absolute = current_location.replace("$HOME", &home);
+
+            #[cfg(debug_assertions)]
+            println!("'{}', '{}'", current_location_absolute, new_location_absolute);
+
+            if current_location_absolute == new_location_absolute {
                 println!("xdg-user-dir {} already at location {}", &id, &new_location);
                 continue;
             }
-
             println!("Setting xdg-user-dir {} to location {}", &id, &new_location);
-
-            let new_location_absolute = new_location.replace("$HOME", &home);
 
             let _status = std::process::Command::new("xdg-user-dirs-update")
                 .arg("--set")
