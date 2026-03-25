@@ -20,8 +20,8 @@ jobs:
         run: cp target/release/localsetup .
       - name: Install minisign
         run: |
-          apt update
-          apt install minisign
+          sudo apt update
+          sudo apt install minisign
       - name: Sign release
         run: echo $MINISIGN_SECRET_KEY | minisign -Sm localsetup -s /dev/stdin
         env:
