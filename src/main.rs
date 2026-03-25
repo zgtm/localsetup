@@ -158,9 +158,64 @@ fn write_config(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn hash_string(input: &str) -> String {
+    use sha2::Digest;
+    let mut sha256 = sha2::Sha256::new();
+    sha256.update(input);
+    format!("{:x}", sha256.finalize())
+}
+
 fn get_setup(source: &str) -> Result<Setupfile, Box<dyn std::error::Error>> {
+    use std::io::Read;
+
     let mut source = source.to_owned();
-    if source.starts_with("http://") || source.starts_with("https://") {
+    if source.starts_with("git://")
+        || source.starts_with("ssh://")
+        || source.starts_with("git@")
+        || source.ends_with(".git")
+        || source.ends_with(".git/") {
+        let hash = &hash_string(&source)[..16];
+        let cache_path = get_cache_path();
+        let repository_dir = format!("{}/git_checkout/{}", cache_path, hash);
+        if path_exists(&repository_dir) {
+            println!("==============================================================================");
+            let _status = std::process::Command::new("git")
+                .arg("pull")
+                .current_dir(&repository_dir)
+                .status()
+                .expect("failed to execute process");
+            println!("==============================================================================");
+        } else {
+            let _status = std::process::Command::new("mkdir")
+                .arg("-p")
+                .arg(&repository_dir)
+                .status()?;
+
+            println!("==============================================================================");
+            let _status = std::process::Command::new("git")
+                .arg("clone")
+                .arg(&source)
+                .arg(&repository_dir)
+                .status()
+                .expect("failed to execute process");
+            println!("==============================================================================");
+        }
+        // TODO: Add handling for failed clone (generate and output key, show user, try again)
+
+        let output = std::process::Command::new("uname")
+            .arg("-n")
+            .output()?;
+        let hostname = &String::from_utf8(output.stdout).unwrap().trim().to_owned();
+
+        let filename =  format!("{}/{}.toml", repository_dir, hostname);
+
+        let mut file = std::fs::File::open(filename)?;
+        let mut config_toml = String::new();
+        file.read_to_string(&mut config_toml)?;
+        let setup: Setupfile = toml::from_str(&config_toml)?;
+        return Ok(setup);
+    }
+    else if source.starts_with("http://") || source.starts_with("https://") {
         if source.starts_with("https://github.com/") && source.contains("blob") {
             #[cfg(debug_assertions)]
             print!("Replacing {} by ", source);
@@ -184,7 +239,6 @@ fn get_setup(source: &str) -> Result<Setupfile, Box<dyn std::error::Error>> {
 
                 if let Ok(mut file) = std::fs::File::open(cache_path.clone() + "/localsetup.toml") {
                     let mut config_toml = String::new();
-                    use std::io::Read;
                     file.read_to_string(&mut config_toml)?;
 
                     println!("Using locally cached version at {} instead", cache_path.clone() + "/localsetup.toml");
@@ -198,7 +252,6 @@ fn get_setup(source: &str) -> Result<Setupfile, Box<dyn std::error::Error>> {
     } else {
         let mut file = std::fs::File::open(source)?;
         let mut config_toml = String::new();
-        use std::io::Read;
         file.read_to_string(&mut config_toml)?;
         let setup: Setupfile = toml::from_str(&config_toml)?;
         return Ok(setup);
