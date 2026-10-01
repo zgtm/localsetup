@@ -24,3 +24,23 @@ jobs:
         with:
           name: localsetup
           path: target/release/localsetup
+
+  build-mac:
+    name: build-mac
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ hashFiles('**/Cargo.lock') }}-mac
+      - run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: localsetup_mac
+          path: target/release/localsetup

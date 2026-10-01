@@ -6,8 +6,20 @@ on:
 name: Create Release
 
 jobs:
-  build:
+  create-release:
     name: Create Release
+    runs-on: ubunte-latest
+    permissions: write-all
+
+    steps:
+      - name: Create Release
+        run: gh release create ${{ github.ref_name }} -t "Release ${{ github.ref_name }}" --generate-notes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+
+  build:
+    name: Build Linux Release
     runs-on: ubuntu-latest
     permissions: write-all
 
@@ -36,11 +48,41 @@ jobs:
         run: echo | minisign -Sm localsetup -s <(echo "${MINISIGN_SECRET_KEY@E}")
         env:
           MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
-      - name: Create Release
-        run: gh release create ${{ github.ref_name }} -t "Release ${{ github.ref_name }}" --generate-notes
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
       - name: Upload binary
         run: gh release upload ${{ github.ref_name }} localsetup localsetup.minisig
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+  build-mac:
+    name: Build Mac Release
+    runs-on: macos-latest
+    permissions: write-all
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ hashFiles('**/Cargo.lock') }}-mac
+      - name: Build binary
+        run: cargo build --release
+      - name: Copy binary
+        run: cp target/release/localsetup localsetup_mac
+      - name: Install minisign
+        run: |
+          brew install minisign
+      - name: Sign release
+        run: echo | minisign -Sm localsetup_mac -s <(echo "${MINISIGN_SECRET_KEY@E}")
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+      - name: Upload binary
+        run: gh release upload ${{ github.ref_name }} localsetup_mac localsetup_mac.minisig
         env:
           GITHUB_TOKEN: ${{ github.token }}
