@@ -12,6 +12,8 @@ jobs:
     permissions: write-all
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
       - name: Create Release
         run: gh release create ${{ github.ref_name }} -t "Release ${{ github.ref_name }}" --generate-notes --draft
         env:
