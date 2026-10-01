@@ -25,7 +25,7 @@ struct Repository {
     update: Option<bool>,
     synchronise: Option<bool>,
     run_once: Option<String>,
-    run_everytime: Option<String>,
+    run_always: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -130,6 +130,9 @@ fn write_config(config: Config) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn get_setup(mut source: String) -> Result<Setupfile, Box<dyn std::error::Error>> {
+    #[cfg(debug_assertions)]
+    println!("Source: {}", source);
+
     if source.starts_with("http://") || source.starts_with("https://") {
         if source.starts_with("https://github.com/") && source.contains("blob") {
             #[cfg(debug_assertions)]
@@ -170,6 +173,8 @@ fn get_setup(mut source: String) -> Result<Setupfile, Box<dyn std::error::Error>
         let mut config_toml = String::new();
         use std::io::Read;
         file.read_to_string(&mut config_toml)?;
+        #[cfg(debug_assertions)]
+        println!("{}", config_toml);
         let setup: Setupfile = toml::from_str(&config_toml)?;
         return Ok(setup);
     }
@@ -294,12 +299,14 @@ fn setup_repository(repository: &Repository) -> Result<bool, Box<dyn std::error:
         std::fs::create_dir_all(base)?;
     }
 
+    #[cfg(debug_assertions)]
+    println!("Clone {} into {}", &repository.source, &target);
+
     std::process::Command::new("git")
         .arg("clone")
         .arg(&repository.source)
         .arg(&target)
-        .output()
-        .expect("failed to execute process");
+        .output()?;
 
     Ok(true)
 }
@@ -349,8 +356,7 @@ fn synchronise_repository(repository: &Repository) -> Result<(), Box<dyn std::er
         .arg("-am")
         .arg("autocommit")
         .current_dir(&target)
-        .output()
-        .expect("failed to execute process");
+        .output()?;
 
     println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
     println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
@@ -359,8 +365,7 @@ fn synchronise_repository(repository: &Repository) -> Result<(), Box<dyn std::er
         .arg("pull")
         .arg("-r")
         .current_dir(&target)
-        .output()
-        .expect("failed to execute process");
+        .output()?;
 
     println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
     println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
@@ -368,8 +373,23 @@ fn synchronise_repository(repository: &Repository) -> Result<(), Box<dyn std::er
     let output = std::process::Command::new("git")
         .arg("push")
         .current_dir(&target)
-        .output()
-        .expect("failed to execute process");
+        .output()?;
+
+    println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
+    println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
+
+    Ok(())
+}
+
+fn run_in_repository(repository: &Repository, command: &str) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(debug_assertions)]
+    println!("Run command '{}'", command);
+
+    let output = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(command)
+        .current_dir(&repository.target)
+        .output()?;
 
     println!(" | {}", str::from_utf8(&output.stdout).unwrap().replace("\n", "\n | "));
     println!(" | {}", str::from_utf8(&output.stderr).unwrap().replace("\n", "\n | "));
@@ -858,6 +878,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } else if repository.update.unwrap_or_default() {
                     update_repository(repository)?;
                 }
+            }
+
+            if newly_setup {
+                if let Some(run_once) = &repository.run_once {
+                    run_in_repository(repository, &run_once)?;
+                }
+            }
+            if let Some(run_always) = &repository.run_always {
+                run_in_repository(repository, &run_always)?;
             }
         }
     }
